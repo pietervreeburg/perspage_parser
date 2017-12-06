@@ -1,5 +1,5 @@
 # Checkscript for ESE profile pages
-# Pieter Vreeburg, 6-12-2017 (New version for Drupal profile pages)
+# Pieter Vreeburg, 6-12-2017 (new version for Drupal profile pages)
 
 # imports
 import os # from std. library, os interactions
@@ -15,28 +15,29 @@ import bs4 # HTML parsing
 main_dir = r'C:\git_repos\perspage_parser'
 input_file = 'input.txt'
 report_dir = 'output'
+school_report_name = 'ESE'
 base_url = 'https://beta.eur.nl/'
 listview_url = 'people?f[0]=researcher_profiles_organisation%3A14&page='
-photo_url = 'typo3temp/pics/'
 
 # functions
-def write_report(data, report_name):
+def write_report(data, report_name, school_out = school_report_name):
     data = sorted(data)
-    with open(os.path.join(main_dir, report_dir, '{}_{}.txt'.format(report_name, datetime.date.today())), 'w') as f_out:
+    with open(os.path.join(main_dir, report_dir, '{}_{}_{}.txt'.format(report_name, school_out, datetime.date.today())), 'w') as f_out:
         for item in data:
             line = item + '\n'
             f_out.write(line)
 
-def write_json_file(dict, file_name):
-    outfile = open(os.path.join(main_dir, report_dir, '{}_{}.json'.format(file_name, datetime.date.today())), 'w')
+def write_json_file(dict, file_name, school_out = school_report_name):
+    outfile = open(os.path.join(main_dir, report_dir, '{}_{}_{}.json'.format(file_name, school_out, datetime.date.today())), 'w')
     json.dump(dict, outfile, indent = 4)
 
 detail_page_url_list = []
-char = 20
+listview_page_num = 0
 # build profile_datastore dictionary
-# use listview to build profile_datastore and get detail_page_url
+# use listview to get detail_page_url_list
 while True:
-    request_url = '{}{}{}'.format(base_url, listview_url, char)
+    print 'Processing listview page:', listview_page_num
+    request_url = '{}{}{}'.format(base_url, listview_url, listview_page_num)
     listview_page = requests.get(request_url).text
     sleep(1)
     listview_page_soup = bs4.BeautifulSoup(listview_page, 'lxml')
@@ -48,32 +49,33 @@ while True:
         name_link = profile_div.find('a')
         detail_page_url = name_link['href']
         detail_page_url_list.append(detail_page_url)
-    char += 1
+    listview_page_num += 1
 
-# use detail pages to fill profile_datastore
+    # break # debug
+
+# use detail_page_url_list to build profile_datastore
+# TO_DO: has_irregular_staff, get from func
 profile_datastore = {}
+missing_detail_page = []
 for detail_page_url in detail_page_url_list:
-    print 'Downloading:', detail_page_url
+    print 'Processing detail page:', detail_page_url.split('/')[-1]
+    detail_page_full_url = '{}{}'.format(base_url, detail_page_url)
+    detail_page = requests.get(detail_page_full_url).text
     sleep(1)
-    detail_page_url = '{}{}'.format(base_url, detail_page_url)
-    detail_page = requests.get(detail_page_url).text
-    # missing_detail_page, add this later
-    # if 'In contact with experts' in detail_page:
-        # profile_datastore[email]['has_detail_page'] = False # some people are included in the listview, but have no detail page
-        # continue
-    # else:
-        # profile_datastore[email]['has_detail_page'] = True # some people are included in the listview, but have no detail page
     detail_page_soup = bs4.BeautifulSoup(detail_page, 'lxml')
-    # info-block, contains: photo, func, room, tel, e-mail
+    # missing_detail_page
     info_block = detail_page_soup.find('div', class_ = 'person__info-block background--dark l-column-left')
+    if not info_block:
+        missing_detail_page.append(detail_page_full_url)
+        continue
+    # info-block, contains: photo, func, room, tel, e-mail
     email = info_block.find('a').string
     profile_datastore[email] = {'name' : None,
                             'func' : None,
                             'photo_url' : None,
-                            'detail_page_url' : detail_page_url,
-                            'has_detail_page' : None,
-                            'cv' : None,
-                            'linked_in' : None,
+                            'detail_page_url' : detail_page_full_url,
+                            'cv_url' : None,
+                            'linked_in_url' : None,
                             'room_nr': None,
                             'tel_nr' : None,
                             'story' : None}
@@ -82,22 +84,23 @@ for detail_page_url in detail_page_url_list:
     if photo_url:
         profile_datastore[email]['photo_url'] = photo_url
     # room number
-    room_nr = info_block.find('dt', string = 'Room').find_next_sibling('dd').string
-    if room_nr:
-        profile_datastore[email]['room_nr'] = room_nr
+    room_nr_str = info_block.find('dt', string = 'Room')
+    if room_nr_str: 
+        room_nr = room_nr_str.find_next_sibling('dd').string
+        if room_nr != '-':
+            profile_datastore[email]['room_nr'] = room_nr
     # tel number
-    tel_nr = info_block.find('dt', string = 'Telephone').find_next_sibling('dd').string
-    if tel_nr:
+    tel_nr_str = info_block.find('dt', string = 'Telephone')
+    if tel_nr_str:
+        tel_nr = tel_nr_str.find_next_sibling('dd').string
         profile_datastore[email]['tel_nr'] = tel_nr
     # name
     name = detail_page_soup.find('span', class_ = 'person__fullname').string
     if name:
-        profile_datastore[email]['name'] = name
-    # story, NOG EVEN OVER NADENKEN
+        profile_datastore[email]['name'] = name.encode('utf-8')
+    # story
     story_div = detail_page_soup.find('div', class_ = 'person__description')
     story = []
-    # EXAMPLE    
-    # <div class="person__description"><p><p>Ran Xing is affiliated to the Finance Group of Erasmus School of Economics (Erasmus University Rotterdam). He got his Ph.D from Tilburg University, and he has been a visiting scholar at The Wharton School.</p><p>Ran conducts theoretical and empirical research in asset pricing. His current work focuses on the skill of mutual funds and the pricing of liquidity risk.</p><p>You can find more information on his personal website: <a href="https://sites.google.com/view/xingran">https://sites.google.com/view/xingran</a></p><p> </p><p> </p></p></div>
     for item in story_div.descendants:
         if isinstance(item, bs4.element.Tag):
             if len(item.contents) > 0:
@@ -105,29 +108,32 @@ for detail_page_url in detail_page_url_list:
     if len(story) > 0:
         story = ''.join(story).encode('utf-8')
         profile_datastore[email]['story'] = story
+    # more_information_block, contains: cv, LinkedIn
+    more_info_block = detail_page_soup.find('div', class_ = 'person__extra-info l-column-right')
     # cv
-    # cv_div = detail_page_soup.find('div', class_ = 'alsoseerow')
-    # if cv_div:
-        # profile_datastore[email]['cv'] = True
-    # LinkedIn
-    # linked_in = detail_page_soup.find('a', title = 'LinkedIN')['href']
-    # if linked_in:
-        # profile_datastore[email]['linked_in'] = linked_in
+    try:
+        cv = more_info_block.find('span', string = 'Cv').parent['href']
+        profile_datastore[email]['cv_url'] = cv
+    except AttributeError:
+        pass
+    # lindked_in
+    try:
+        linked_in = more_info_block.find('span', string = 'Linkedin').parent['href']
+        profile_datastore[email]['linked_in_url'] = linked_in
+    except AttributeError:
+        pass
 
-    write_json_file(profile_datastore, 'profile_datastore_dump') # debug
-    quit() # debug
+write_json_file(profile_datastore, 'profile_datastore_dump')
 
 # build reports
 remove_page = []
 missing_page = []
-missing_detail_page = []
 missing_photo = []
 missing_cv = []
 missing_linked_in = []
 missing_room_tel = []
 missing_story = []
 has_photo = []
-has_research_programmes = []
 has_irregular_staff = []
 has_story = []
 
@@ -148,15 +154,11 @@ for item in staff_data:
         missing_photo.append(std_output)
     else:
         has_photo.append((profile['name'], '{}{}'.format(base_url, profile['photo_url'])))
-    # missing_detail_page
-    # if profile['has_detail_page'] == False:
-        # missing_detail_page.append(std_output)
-        # continue
     # has_irregular_staff
     if profile['func'] == 'Irregular Staff':
        has_irregular_staff.append(std_output)
     # missing cv
-    if not profile['cv']:
+    if not profile['cv_url']:
         missing_cv.append(std_output)
     # missing_story & has_story
     if not profile['story']:
@@ -164,7 +166,7 @@ for item in staff_data:
     else:
         has_story.append('{}\n{}\n'.format(std_output, profile['story']))
     # missing_linkedin
-    if not profile['linked_in']:
+    if not profile['linked_in_url']:
         missing_linked_in.append(std_output)
     # missing_room_telnr
     if not profile['room_nr'] or not profile['tel_nr']:
@@ -175,17 +177,17 @@ for email in profile_datastore.keys():
         remove_page.append(email)
 
 # write reports
-write_report(remove_page, '1_remove_page_ESE_profile_pages')
-write_report(missing_page, '2_missing_page_ESE_profile_pages')
-write_report(missing_detail_page, '3_missing_detail_page_ESE_profile_pages')
-# 5_has_photo_ESE_profile_pages: see below
-write_report(missing_photo, '4_missing_photos_ESE_profile_pages')
-write_report(has_irregular_staff, '6_has_irregular_staff_ESE_profile_pages')
-write_report(missing_cv, '7_missing_cv_ESE_profile_pages')
-write_report(missing_cv, '8_missing_LinkedIn_ESE_profile_pages')
-write_report(missing_room_tel, '9_missing_room_tel_ESE_profile_pages')
-write_report(missing_story, '10_missing_story_ESE_profile_pages')
-write_report(has_story, '11_has_story_ESE_profile_pages')
+write_report(remove_page, '1_remove_page')
+write_report(missing_page, '2_missing_page')
+write_report(missing_detail_page, '3_missing_detail_page')
+write_report(missing_photo, '4_missing_photo')
+# 5_has_photo: see below
+write_report(has_irregular_staff, '6_has_irregular_staff')
+write_report(missing_cv, '7_missing_cv')
+write_report(missing_linked_in, '8_missing_LinkedIn')
+write_report(missing_room_tel, '9_missing_room_tel')
+write_report(missing_story, '10_missing_story')
+write_report(has_story, '11_has_story')
 
 # write report 5_has_photo_ESE_profile_pages
 cnt = 1
@@ -204,5 +206,5 @@ if table_html[-1] != '</tr>':
     table_html.append('/<tr>')
 table_html.append('</table>')
 html = '\n'.join(table_html)
-with open(os.path.join(main_dir, report_dir, '5_has_photo_ESE_profile_pages_{}.html'.format(datetime.date.today())), 'w') as f_out:
+with open(os.path.join(main_dir, report_dir, '5_has_photo_{}_{}.html'.format(school_report_name, datetime.date.today())), 'w') as f_out:
     f_out.write(html)
