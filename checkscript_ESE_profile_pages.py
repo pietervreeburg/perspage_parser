@@ -1,5 +1,7 @@
 # Checkscript for ESE profile pages
-# Pieter Vreeburg, 14-11-2017
+# Pieter Vreeburg, 6-12-2017
+
+# new version for Drupal profile pages
 
 # imports
 import os # from std. library, os interactions
@@ -12,12 +14,15 @@ import requests # for HTTP requests
 import bs4 # HTML parsing
 
 # dirs + URLs
+main_dir = r'C:\git_repos\perspage_parser'
 input_file = 'input.txt'
-main_dir = r'\\campus.eur.nl\shared\departments\ESE-FD-BB-ONDERZOEK\Pieter_Vreeburg\1_Project_support\Profielpaginas\Python_checkscript'
 report_dir = 'output'
-base_url = 'https://www.eur.nl/'
-profile_url = 'people/ese/people/'
+base_url = 'https://beta.eur.nl/'
+listview_url = 'people?f[0]=researcher_profiles_organisation%3A14&page='
 photo_url = 'typo3temp/pics/'
+
+# eraskop = 'https://beta.eur.nl/modules/custom/eur_people_pages/img/profile-default-image.jpg'
+# foto alfons = 'https://beta.eur.nl/sites/corporate/files/styles/profile/public/externals/972540dbcc07cdb662a12ce14eb9df91.jpg?itok=ziQlgrwd'
 
 # functions
 def write_report(data, report_name):
@@ -31,37 +36,50 @@ def write_json_file(dict, file_name):
     outfile = open(os.path.join(main_dir, report_dir, '{}_{}.json'.format(file_name, datetime.date.today())), 'w')
     json.dump(dict, outfile, indent = 4)
 
-profile_datastore = {}
-range = string.lowercase #[5] # use indexing to get data for a specific character f = index 5 etc.
+detail_url_list = []
+char = 20
 # build profile_datastore dictionary
-# listviews
-for char in range:
-    listview_page = requests.get('{}{}{}'.format(base_url, profile_url, char)).text
+# use listview to build profile_datastore and get detail_page_url
+while True:
+    request_url = '{}{}{}'.format(base_url, listview_url, char)
+    print request_url
+    listview_page = requests.get(request_url).text
     sleep(1)
     listview_page_soup = bs4.BeautifulSoup(listview_page, 'lxml')
-    profile_divs = listview_page_soup.find_all('div', class_ = 'profile')
-    for profile in profile_divs:
-        listing_div = profile.find('div', class_ = 'listing')
-        photo_div = profile.find('div', class_ = 'headshot')
-        links = listing_div.find_all('a')
-        email = links[1]['href'].split(':')[-1]
-        name = listing_div.find('h2').string.encode('utf-8')
-        func = listing_div.find('h5').string
-        detail_page_url = links[0]['href']
-        photo_url = photo_div.find('img')['src'] # typo3temp/pics/2f243ef8bd.jpg
-        profile_datastore[email] = {'name' : name,
-                                'func' : func,
-                                'photo_url' : photo_url,
-                                'detail_page_url' : detail_page_url,
-                                'has_detail_page' : None,
-                                'research_progs' : None,
-                                'cv' : None,
-                                'linked_in' : None,
-                                'room_nr': None,
-                                'tel_nr' : None,
-                                'story' : None}
+    check_overview_list = listview_page_soup.find('ul', class_ = 'overview__list')
+    if not check_overview_list:
+        break
+    profile_divs = listview_page_soup.find_all('div', class_ = 'field field--name-node-title field--type-ds field--label-hidden')
+    for profile_div in profile_divs:
+        name_link = profile_div.find('a')
+        detail_page_url = name_link['href']
+        detail_url_list.append(detail_page_url)
+    char += 1
+
+quit() # debug
 
 # detail pages
+
+# photo_div = profile.find('div', class_ = 'headshot')
+# links = listing_div.find_all('a')
+# email = links[1]['href'].split(':')[-1]
+# func = listing_div.find('h5').string
+# photo_url = photo_div.find('img')['src'] # typo3temp/pics/2f243ef8bd.jpg
+
+# profile_datastore = {}
+# profile_datastore[email] = {'name' : name,
+                        # 'func' : None,
+                        # 'photo_url' : None,
+                        # 'detail_page_url' : detail_page_url,
+                        # 'has_detail_page' : None,
+                        # 'research_progs' : None,
+                        # 'cv' : None,
+                        # 'linked_in' : None,
+                        # 'room_nr': None,
+                        # 'tel_nr' : None,
+                        # 'story' : None}
+
+
 for email, profile in profile_datastore.items():
     print 'Downloading: ', profile['name']
     sleep(1)
