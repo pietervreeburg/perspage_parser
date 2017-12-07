@@ -11,13 +11,17 @@ import json # from std library, import / export JSON
 import requests # for HTTP requests
 import bs4 # HTML parsing
 
-# dirs + URLs
+# dirs
 main_dir = r'C:\git_repos\perspage_parser'
-input_file = 'input.txt'
 report_dir = 'output'
-school_report_name = 'ESE'
+input_file = 'input.txt'
+
+# URLs
 base_url = 'https://beta.eur.nl/'
 listview_url = 'people?f[0]=researcher_profiles_organisation%3A14&page='
+
+# settings
+school_report_name = 'ESE'
 
 # functions
 def write_report(data, report_name, school_out = school_report_name):
