@@ -1,5 +1,5 @@
 # Checkscript for ESE profile pages
-# Pieter Vreeburg, 6-12-2017 (new version for Drupal profile pages)
+# Pieter Vreeburg, 7-12-2017 (new version for Drupal profile pages)
 
 # imports
 import os # from std. library, os interactions
@@ -68,21 +68,32 @@ for detail_page_url in detail_page_url_list:
     if not info_block:
         missing_detail_page.append(detail_page_full_url)
         continue
-    # info-block, contains: photo, func, room, tel, e-mail
+    # info-block, contains: photo, full title, func, room, tel, e-mail
     email = info_block.find('a').string
     profile_datastore[email] = {'name' : None,
-                            'func' : None,
-                            'photo_url' : None,
-                            'detail_page_url' : detail_page_full_url,
-                            'cv_url' : None,
-                            'linked_in_url' : None,
-                            'room_nr': None,
-                            'tel_nr' : None,
-                            'story' : None}
+                                'func' : None,
+                                'full_title' : None,
+                                'photo_url' : None,
+                                'detail_page_url' : detail_page_full_url,
+                                'cv_url' : None,
+                                'linked_in_url' : None,
+                                'room_nr': None,
+                                'tel_nr' : None,
+                                'story' : None}
     # photo
     photo_url = info_block.find('img')['src']
     if photo_url:
         profile_datastore[email]['photo_url'] = photo_url
+    # full_title
+    full_title = info_block.find('h3', class_ = 'person__fulltitle')
+    if full_title:
+        full_title = full_title.string
+        profile_datastore[email]['full_title'] = full_title
+    # func
+    func = info_block.find('span', class_ = 'person-position__item')
+    if func:
+        func = func.string
+        profile_datastore[email]['func'] = func
     # room number
     room_nr_str = info_block.find('dt', string = 'Room')
     if room_nr_str: 
@@ -95,8 +106,9 @@ for detail_page_url in detail_page_url_list:
         tel_nr = tel_nr_str.find_next_sibling('dd').string
         profile_datastore[email]['tel_nr'] = tel_nr
     # name
-    name = detail_page_soup.find('span', class_ = 'person__fullname').string
+    name = detail_page_soup.find('span', class_ = 'person__fullname')
     if name:
+        name = name.string
         profile_datastore[email]['name'] = name.encode('utf-8')
     # story
     story_div = detail_page_soup.find('div', class_ = 'person__description')
@@ -126,7 +138,6 @@ for detail_page_url in detail_page_url_list:
 write_json_file(profile_datastore, 'profile_datastore_dump')
 
 # build reports
-remove_page = []
 missing_page = []
 missing_photo = []
 missing_cv = []
@@ -134,8 +145,9 @@ missing_linked_in = []
 missing_room_tel = []
 missing_story = []
 has_photo = []
-has_irregular_staff = []
+has_irregular_func = []
 has_story = []
+has_full_title = []
 
 staff_data = open(os.path.join(main_dir, input_file)).read().splitlines()
 staff_email = []
@@ -154,9 +166,18 @@ for item in staff_data:
         missing_photo.append(std_output)
     else:
         has_photo.append((profile['name'], '{}{}'.format(base_url, profile['photo_url'])))
-    # has_irregular_staff
-    if profile['func'] == 'Irregular Staff':
-       has_irregular_staff.append(std_output)
+    # has_irregular_func
+    regular_funcs = [
+                    'Full Professor',
+                    'Endowed Professor',
+                    'Associate Professor',
+                    'Assistant Professor',
+                    'PhD Candidate']
+    if profile['func'] not in regular_funcs:
+       has_irregular_func.append('{}\n{}\n'.format(std_output, profile['func']))
+    # has_full_title
+    if profile['full_title']:
+        has_full_title.append('{}\n{}\n'.format(std_output, profile['full_title']))
     # missing cv
     if not profile['cv_url']:
         missing_cv.append(std_output)
@@ -172,9 +193,11 @@ for item in staff_data:
     if not profile['room_nr'] or not profile['tel_nr']:
         missing_room_tel.append('{}, room: {}, tel: {}'.format(std_output, profile['room_nr'], profile['tel_nr']))
 
+remove_page = []
 for email in profile_datastore.keys():
     if email not in staff_email:
-        remove_page.append(email)
+        std_output = '{}, {}, {}'.format(profile_datastore[email]['name'], email, profile_datastore[email]['detail_page_url'])
+        remove_page.append(std_output)
 
 # write reports
 write_report(remove_page, '1_remove_page')
@@ -182,12 +205,13 @@ write_report(missing_page, '2_missing_page')
 write_report(missing_detail_page, '3_missing_detail_page')
 write_report(missing_photo, '4_missing_photo')
 # 5_has_photo: see below
-write_report(has_irregular_staff, '6_has_irregular_staff')
+write_report(has_irregular_func, '6_has_irregular_func')
 write_report(missing_cv, '7_missing_cv')
 write_report(missing_linked_in, '8_missing_LinkedIn')
 write_report(missing_room_tel, '9_missing_room_tel')
 write_report(missing_story, '10_missing_story')
 write_report(has_story, '11_has_story')
+write_report(has_full_title, '12_has_full_title')
 
 # write report 5_has_photo_ESE_profile_pages
 cnt = 1
