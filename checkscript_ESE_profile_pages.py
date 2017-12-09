@@ -1,12 +1,13 @@
 # Checkscript for ESE profile pages
-# Pieter Vreeburg, 7-12-2017 (new version for Drupal profile pages)
+# Pieter Vreeburg, 9-12-2017 (new version for Drupal profile pages)
 
 # imports
 import os # from std. library, os interactions
 import datetime # from std.library, time functions
 from time import sleep # from std. library, sleep script (do not overload the server)
 import string # from std. library, string functions
-import json # from std library, import / export JSON
+import json # from std. library, import / export JSON
+import re # from std. library, regular expressions
 
 import requests # for HTTP requests
 import bs4 # HTML parsing
@@ -18,7 +19,7 @@ input_file = 'input.txt'
 
 # URLs
 base_url = 'https://beta.eur.nl/'
-listview_url = 'people?f[0]=researcher_profiles_organisation%3A14&page='
+listview_url = 'en/ese/people?s=&page='
 
 # settings
 school_report_name = 'ESE'
@@ -43,6 +44,7 @@ while True:
     print 'Processing listview page:', listview_page_num
     request_url = '{}{}{}'.format(base_url, listview_url, listview_page_num)
     listview_page = requests.get(request_url).text
+    # Add: check for redirect to ESE homepage, if redirected quit script
     sleep(1)
     listview_page_soup = bs4.BeautifulSoup(listview_page, 'lxml')
     check_overview_list = listview_page_soup.find('ul', class_ = 'overview__list')
@@ -83,7 +85,8 @@ for detail_page_url in detail_page_url_list:
                                 'linked_in_url' : None,
                                 'room_nr': None,
                                 'tel_nr' : None,
-                                'story' : None}
+                                'story' : None,
+                                'num_key_pub': None}
     # photo
     photo_url = info_block.find('img')['src']
     if photo_url:
@@ -124,6 +127,11 @@ for detail_page_url in detail_page_url_list:
     if len(story) > 0:
         story = ''.join(story).encode('utf-8')
         profile_datastore[email]['story'] = story
+    # key publication
+    key_pub = detail_page_soup.find(string = re.compile('Key publication (.+)'))
+    if key_pub:
+        num_key_pub = key_pub.strip()[:-1].split('(')[-1]
+        profile_datastore[email]['num_key_pub'] = num_key_pub
     # more_information_block, contains: cv, LinkedIn
     more_info_block = detail_page_soup.find('div', class_ = 'person__extra-info l-column-right')
     # cv
@@ -148,21 +156,24 @@ missing_cv = []
 missing_linked_in = []
 missing_room_tel = []
 missing_story = []
+missing_key_pub = []
 has_photo = []
 has_irregular_func = []
 has_story = []
 has_full_title = []
 
+input_dict = {}
 staff_data = open(os.path.join(main_dir, input_file)).read().splitlines()
-staff_email = []
-for item in staff_data:
-    email, dept = item.split(';')
+for row in staff_data:
+    email, dept = row.split(';')
     email = email.lower()
-    staff_email.append(email)
+    input_dict[email] = dept
+    
+for email, dept in input_dict.items():
     profile = profile_datastore.get(email)
     # missing_profile
     if not profile:
-        missing_page.append(email)
+        missing_page.append('{}, {}'.format(dept, email))
         continue
     std_output = '{}, {}, {}, {}'.format(dept, profile['name'], email, profile['detail_page_url'])
     # missing_photo & has_photo
@@ -176,7 +187,12 @@ for item in staff_data:
                     'Endowed Professor',
                     'Associate Professor',
                     'Assistant Professor',
-                    'PhD Candidate']
+                    'Trainee Assistant Professor',
+                    'PhD Candidate',
+                    'Teacher Tutor Academy'
+                    #'Academic Researcher',
+                    #'Lecturer'
+                    ]
     if profile['func'] not in regular_funcs:
        has_irregular_func.append('{}\n{}\n'.format(std_output, profile['func']))
     # has_full_title
@@ -196,10 +212,13 @@ for item in staff_data:
     # missing_room_telnr
     if not profile['room_nr'] or not profile['tel_nr']:
         missing_room_tel.append('{}, room: {}, tel: {}'.format(std_output, profile['room_nr'], profile['tel_nr']))
+    # missing_key_pub
+    if not profile['num_key_pub']:
+        missing_key_pub.append(std_output)
 
 remove_page = []
 for email in profile_datastore.keys():
-    if email not in staff_email:
+    if email not in input_dict.keys():
         std_output = '{}, {}, {}'.format(profile_datastore[email]['name'], email, profile_datastore[email]['detail_page_url'])
         remove_page.append(std_output)
 
@@ -216,6 +235,7 @@ write_report(missing_room_tel, '9_missing_room_tel')
 write_report(missing_story, '10_missing_story')
 write_report(has_story, '11_has_story')
 write_report(has_full_title, '12_has_full_title')
+write_report(missing_key_pub, '13_missing_key_publication')
 
 # write report 5_has_photo_ESE_profile_pages
 cnt = 1
