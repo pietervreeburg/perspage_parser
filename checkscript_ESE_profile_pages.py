@@ -3,36 +3,39 @@
 
 # imports
 import os # from std. library, os interactions
+import sys # from std. library, interpretor interactions
 import datetime # from std.library, time functions
 from time import sleep # from std. library, sleep script (do not overload the server)
 import string # from std. library, string functions
 import json # from std. library, import / export JSON
 import re # from std. library, regular expressions
+import urlparse # from std. library, url functions
 
 import requests # for HTTP requests
 import bs4 # HTML parsing
 
 # dirs
-main_dir = r'C:\git_repos\perspage_parser'
+main_dir = sys.path[0]
 report_dir = 'output'
 input_file = 'input.txt'
 
 # URLs
-base_url = 'https://beta.eur.nl/'
-listview_url = 'en/ese/people?s=&page='
+base_url = 'https://eur.nl'
+lang_url = 'en'
+listview_url = 'people?s=&page='
 
 # settings
-school_report_name = 'ESE'
+school_name = 'ese'
 
 # functions
-def write_report(data, report_name, school_out = school_report_name):
+def write_report(data, report_name, school_out = school_name):
     data = sorted(data)
     with open(os.path.join(main_dir, report_dir, '{}_{}_{}.txt'.format(report_name, school_out, datetime.date.today())), 'w') as f_out:
         for item in data:
             line = item + '\n'
             f_out.write(line)
 
-def write_json_file(dict, file_name, school_out = school_report_name):
+def write_json_file(dict, file_name, school_out = school_name):
     outfile = open(os.path.join(main_dir, report_dir, '{}_{}_{}.json'.format(file_name, school_out, datetime.date.today())), 'w')
     json.dump(dict, outfile, indent = 4)
 
@@ -42,7 +45,7 @@ listview_page_num = 0
 # use listview to get detail_page_url_list
 while True:
     print 'Processing listview page:', listview_page_num
-    request_url = '{}{}{}'.format(base_url, listview_url, listview_page_num)
+    request_url = '{}/{}/{}/{}'.format(base_url, lang_url, school_name, listview_url, listview_page_num)
     listview_page = requests.get(request_url).text
     # Add: check for redirect to ESE homepage, if redirected quit script
     sleep(1)
@@ -254,5 +257,5 @@ if table_html[-1] != '</tr>':
     table_html.append('/<tr>')
 table_html.append('</table>')
 html = '\n'.join(table_html)
-with open(os.path.join(main_dir, report_dir, '5_has_photo_{}_{}.html'.format(school_report_name, datetime.date.today())), 'w') as f_out:
+with open(os.path.join(main_dir, report_dir, '5_has_photo_{}_{}.html'.format(school_name, datetime.date.today())), 'w') as f_out:
     f_out.write(html)
