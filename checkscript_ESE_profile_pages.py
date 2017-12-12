@@ -25,7 +25,7 @@ lang_url = 'en'
 listview_url = 'people?s=&page='
 
 # settings
-school_name = 'ese'
+school_name = 'essb'
 
 # functions
 def write_report(data, report_name, school_out = school_name):
@@ -45,7 +45,7 @@ listview_page_num = 0
 # use listview to get detail_page_url_list
 while True:
     print 'Processing listview page:', listview_page_num
-    request_url = '{}/{}/{}/{}'.format(base_url, lang_url, school_name, listview_url, listview_page_num)
+    request_url = '{}/{}/{}/{}{}'.format(base_url, lang_url, school_name, listview_url, listview_page_num)   
     listview_page = requests.get(request_url).text
     # Add: check for redirect to ESE homepage, if redirected quit script
     sleep(1)
