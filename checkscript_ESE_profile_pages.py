@@ -40,7 +40,7 @@ def write_json_file(dict, file_name, school_out = school_name):
     json.dump(dict, outfile, indent = 4)
 
 detail_page_url_list = []
-listview_page_num = 15
+listview_page_num = 0
 # build profile_datastore dictionary
 # use listview to get detail_page_url_list
 while True:
@@ -60,7 +60,7 @@ while True:
         detail_page_url_list.append(detail_page_url)
     listview_page_num += 1
 
-    break # debug
+    # break # debug
 
 # use detail_page_url_list to build profile_datastore
 # TO_DO: has_irregular_staff, get from func
@@ -245,7 +245,7 @@ cnt = 1
 table_html = []
 table_html.append('<table>')
 table_html.append('<tr>')
-for photo in has_photo:
+for photo in sorted(has_photo):
     if table_html[-1] == '</tr>':
         table_html.append('<tr>')
     table_html.append('<td>{}</td>'.format(photo[0]))
