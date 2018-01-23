@@ -17,7 +17,6 @@ import bs4 # HTML parsing
 # dirs
 main_dir = sys.path[0]
 report_dir = 'output'
-input_file = 'input.txt'
 
 # URLs
 base_url = 'https://eur.nl'
@@ -25,7 +24,8 @@ lang_url = 'en'
 listview_url = 'people?s=&page='
 
 # settings
-school_name = 'essb'
+school_name = 'ese'
+input_file = 'input.txt'
 
 # functions
 def write_report(data, report_name, school_out = school_name):
@@ -40,7 +40,7 @@ def write_json_file(dict, file_name, school_out = school_name):
     json.dump(dict, outfile, indent = 4)
 
 detail_page_url_list = []
-listview_page_num = 0
+listview_page_num = 15
 # build profile_datastore dictionary
 # use listview to get detail_page_url_list
 while True:
@@ -53,14 +53,14 @@ while True:
     check_overview_list = listview_page_soup.find('ul', class_ = 'overview__list')
     if not check_overview_list:
         break
-    profile_divs = listview_page_soup.find_all('div', class_ = 'field field--name-node-title field--type-ds field--label-hidden')
-    for profile_div in profile_divs:
-        name_link = profile_div.find('a')
+    overview_items = listview_page_soup.find_all('li', class_ = 'overview__item')
+    for overview_item in overview_items:
+        name_link = overview_item.find('a')
         detail_page_url = name_link['href']
         detail_page_url_list.append(detail_page_url)
     listview_page_num += 1
 
-    # break # debug
+    break # debug
 
 # use detail_page_url_list to build profile_datastore
 # TO_DO: has_irregular_staff, get from func
