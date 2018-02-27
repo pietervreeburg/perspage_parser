@@ -17,7 +17,8 @@ import checkscript_profile_pages_EUR_config as config # configuration vars
 
 # dirs
 main_dir = sys.path[0]
-report_dir = 'output'
+input_dir = 'input'
+output_dir = 'output'
 
 # URLs
 base_url = 'https://eur.nl'
@@ -26,18 +27,34 @@ listview_url = 'people?s=&page='
 
 # settings
 school_name = config.school_name
-input_file = 'input.txt'
+input_file = config.input_file
+
+# check dirs / settings
+if not os.path.isdir(os.path.join(main_dir, output_dir)):
+    os.mkdir(os.path.join(main_dir, output_dir))
+
+if not os.path.isdir(os.path.join(main_dir, input_dir)):
+    os.mkdir(os.path.join(main_dir, input_dir))
+
+# check if input file exists
+if not os.path.isfile(os.path.join(main_dir, input_dir, input_file)):
+    sys.exit('No input file, check script configuration')
+
+# check for valid school_name
+school_url = '{}/{}/{}/{}'.format(base_url, lang_url, school_name, listview_url)
+if requests.get(school_url).status_code == 404:
+    sys.exit('No listview found for {}, check script configuration'.format(school_name))
 
 # functions
 def write_report(data, report_name, school_out = school_name):
     data = sorted(data)
-    with open(os.path.join(main_dir, report_dir, '{}_{}_{}.txt'.format(report_name, school_out, datetime.date.today())), 'w') as f_out:
+    with open(os.path.join(main_dir, output_dir, '{}_{}_{}.txt'.format(report_name, school_out, datetime.date.today())), 'w') as f_out:
         for item in data:
             line = item + '\n'
             f_out.write(line)
 
 def write_json_file(dict, file_name, school_out = school_name):
-    outfile = open(os.path.join(main_dir, report_dir, '{}_{}_{}.json'.format(file_name, school_out, datetime.date.today())), 'w')
+    outfile = open(os.path.join(main_dir, output_dir, '{}_{}_{}.json'.format(file_name, school_out, datetime.date.today())), 'w')
     json.dump(dict, outfile, indent = 4)
 
 detail_page_url_list = []
@@ -46,13 +63,13 @@ listview_page_num = 0
 # use listview to get detail_page_url_list
 while True:
     print 'Processing listview page:', listview_page_num
-    request_url = '{}/{}/{}/{}{}'.format(base_url, lang_url, school_name, listview_url, listview_page_num)   
+    request_url = '{}/{}/{}/{}{}'.format(base_url, lang_url, school_name, listview_url, listview_page_num)
     listview_page = requests.get(request_url).text
-    # Add: check for redirect to ESE homepage, if redirected quit script
     sleep(1)
     listview_page_soup = bs4.BeautifulSoup(listview_page, 'lxml')
     check_overview_list = listview_page_soup.find('ul', class_ = 'overview__list')
     if not check_overview_list:
+        print 'Processing listview pages: Done'
         break
     overview_items = listview_page_soup.find_all('li', class_ = 'overview__item')
     for overview_item in overview_items:
@@ -167,7 +184,7 @@ has_story = []
 has_full_title = []
 
 input_dict = {}
-staff_data = open(os.path.join(main_dir, input_file)).read().splitlines()
+staff_data = open(os.path.join(main_dir, input_dir, input_file)).read().splitlines()
 for row in staff_data:
     email, dept = row.split(';')
     email = email.lower()
@@ -258,5 +275,5 @@ if table_html[-1] != '</tr>':
     table_html.append('/<tr>')
 table_html.append('</table>')
 html = '\n'.join(table_html)
-with open(os.path.join(main_dir, report_dir, '5_has_photo_{}_{}.html'.format(school_name, datetime.date.today())), 'w') as f_out:
+with open(os.path.join(main_dir, output_dir, '5_has_photo_{}_{}.html'.format(school_name, datetime.date.today())), 'w') as f_out:
     f_out.write(html)
