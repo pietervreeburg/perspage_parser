@@ -1,5 +1,5 @@
 # Checkscript for ESE profile pages
-# Pieter Vreeburg, 9-12-2017 (new version for Drupal profile pages)
+# Pieter Vreeburg, 27-2-2018
 
 # imports
 import os # from std. library, os interactions
@@ -10,9 +10,10 @@ import string # from std. library, string functions
 import json # from std. library, import / export JSON
 import re # from std. library, regular expressions
 import urlparse # from std. library, url functions
-
 import requests # for HTTP requests
 import bs4 # HTML parsing
+
+import checkscript_profile_pages_EUR_config as config # configuration vars
 
 # dirs
 main_dir = sys.path[0]
@@ -24,7 +25,7 @@ lang_url = 'en'
 listview_url = 'people?s=&page='
 
 # settings
-school_name = 'ese'
+school_name = config.school_name
 input_file = 'input.txt'
 
 # functions
@@ -60,7 +61,7 @@ while True:
         detail_page_url_list.append(detail_page_url)
     listview_page_num += 1
 
-    # break # debug
+    break # debug
 
 # use detail_page_url_list to build profile_datastore
 # TO_DO: has_irregular_staff, get from func
