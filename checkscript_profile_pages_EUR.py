@@ -1,5 +1,5 @@
 # Checkscript for ESE profile pages
-# Pieter Vreeburg, 27-2-2018
+# Pieter Vreeburg, 28-2-2018
 
 # imports
 import os # from std. library, os interactions
@@ -13,8 +13,6 @@ import urlparse # from std. library, url functions
 import requests # for HTTP requests
 import bs4 # HTML parsing
 
-import checkscript_profile_pages_EUR_config as config # configuration vars
-
 # dirs
 main_dir = sys.path[0]
 input_dir = 'input'
@@ -25,9 +23,11 @@ base_url = 'https://eur.nl'
 lang_url = 'en'
 listview_url = 'people?s=&page='
 
-# settings
-school_name = config.school_name
-input_file = config.input_file
+# load settings from file
+with(open(os.path.join(main_dir, 'checkscript_profile_pages_EUR_config.json'))) as config_f:
+    config = json.load(config_f)
+school_name = config.get('school_name')
+input_file = config.get('input_file')
 
 # check dirs / settings
 if not os.path.isdir(os.path.join(main_dir, output_dir)):
@@ -78,7 +78,7 @@ while True:
         detail_page_url_list.append(detail_page_url)
     listview_page_num += 1
 
-    break # debug
+    # break # debug
 
 # use detail_page_url_list to build profile_datastore
 # TO_DO: has_irregular_staff, get from func
@@ -124,7 +124,7 @@ for detail_page_url in detail_page_url_list:
         profile_datastore[email]['func'] = func
     # room number
     room_nr_str = info_block.find('dt', string = 'Room')
-    if room_nr_str: 
+    if room_nr_str:
         room_nr = room_nr_str.find_next_sibling('dd').string
         if room_nr != '-':
             profile_datastore[email]['room_nr'] = room_nr
@@ -189,7 +189,7 @@ for row in staff_data:
     email, dept = row.split(';')
     email = email.lower()
     input_dict[email] = dept
-    
+
 for email, dept in input_dict.items():
     profile = profile_datastore.get(email)
     # missing_profile
