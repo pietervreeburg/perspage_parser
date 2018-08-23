@@ -1,5 +1,5 @@
 # Checkscript for ESE profile pages
-# Pieter Vreeburg, 28-2-2018
+# Pieter Vreeburg, 20-8-2018
 
 # imports
 import os # from std. library, os interactions
@@ -18,10 +18,15 @@ main_dir = sys.path[0]
 input_dir = 'input'
 output_dir = 'output'
 
-# URLs
+# prod URLs
 base_url = 'https://eur.nl'
 lang_url = 'en'
 listview_url = 'people?s=&page='
+
+# accept URLS
+# base_url = 'https://cms-accept-single.eur.nl'
+# lang_url = ''
+# listview_url = 'people?s=&f%5B0%5D=researcher_profiles_organisation%3A14&page='
 
 # load settings from file
 with(open(os.path.join(main_dir, 'checkscript_profile_pages_EUR_config.json'))) as config_f:
@@ -42,6 +47,7 @@ if not os.path.isfile(os.path.join(main_dir, input_dir, input_file)):
 
 # check for valid school_name
 school_url = '{}/{}/{}/{}'.format(base_url, lang_url, school_name, listview_url)
+
 if requests.get(school_url).status_code == 404:
     sys.exit('No listview found for {}, check script configuration'.format(school_name))
 
@@ -78,7 +84,7 @@ while True:
         detail_page_url_list.append(detail_page_url)
     listview_page_num += 1
 
-    # break # debug
+    break # debug
 
 # use detail_page_url_list to build profile_datastore
 # TO_DO: has_irregular_staff, get from func
@@ -91,7 +97,7 @@ for detail_page_url in detail_page_url_list:
     sleep(1)
     detail_page_soup = bs4.BeautifulSoup(detail_page, 'lxml')
     # missing_detail_page
-    info_block = detail_page_soup.find('div', class_ = 'person__info-block background--dark l-column-left')
+    info_block = detail_page_soup.find('div', class_ = 'person__info-block l-column-left')
     if not info_block:
         missing_detail_page.append(detail_page_full_url)
         continue
@@ -113,7 +119,7 @@ for detail_page_url in detail_page_url_list:
     if photo_url:
         profile_datastore[email]['photo_url'] = photo_url
     # full_title
-    full_title = info_block.find('h3', class_ = 'person__fulltitle')
+    full_title = info_block.find('h2', class_ = 'person__fulltitle')
     if full_title:
         full_title = full_title.string
         profile_datastore[email]['full_title'] = full_title
@@ -139,22 +145,17 @@ for detail_page_url in detail_page_url_list:
         name = name.string
         profile_datastore[email]['name'] = name.encode('utf-8')
     # story
-    story_div = detail_page_soup.find('div', class_ = 'person__description')
-    story = []
-    for item in story_div.descendants:
-        if isinstance(item, bs4.element.Tag):
-            if len(item.contents) > 0:
-                story.append(unicode(item))
-    if len(story) > 0:
-        story = ''.join(story).encode('utf-8')
-        profile_datastore[email]['story'] = story
+    # hier gaat nog iets mis om dat een <strong> in een <p> als twee descendants wordt gezien en daarom komt de inhoud twee keer terug
+    story_div = detail_page_soup.find('div', class_ = 'fold-out__extra-text js-accordion-content')
+    if story_div:
+        profile_datastore[email]['story'] = str(story_div)
     # key publication
     key_pub = detail_page_soup.find(string = re.compile('Key publication (.+)'))
     if key_pub:
         num_key_pub = key_pub.strip()[:-1].split('(')[-1]
         profile_datastore[email]['num_key_pub'] = num_key_pub
     # more_information_block, contains: cv, LinkedIn
-    more_info_block = detail_page_soup.find('div', class_ = 'person__extra-info l-column-right')
+    more_info_block = detail_page_soup.find('ul', class_ = 'person-social-links')
     # cv
     try:
         cv = more_info_block.find('span', string = 'Cv').parent['href']
@@ -196,12 +197,22 @@ for email, dept in input_dict.items():
     if not profile:
         missing_page.append('{}, {}'.format(dept, email))
         continue
-    std_output = '{}, {}, {}, {}'.format(dept, profile['name'], email, profile['detail_page_url'])
+    std_output = '{}; {}; {}; {}'.format(dept, profile['name'], email, profile['detail_page_url'])
+    # get sorting decorator
+    detail_url_split = profile['detail_page_url'].split('-')
+    if len(detail_url_split[-1]) == 1:
+        last_nm = detail_url_split[-2]
+    else:
+        last_nm = detail_url_split[-1]
+    sort_dec = '{}_{}'.format(dept, last_nm)
+    
+    # add sorting decorator to std output as tuple. Use decorator to sort, remove decorator in report writer
+    
     # missing_photo & has_photo
     if profile['photo_url'].split('/')[-1] == 'profile-default-image.jpg':
         missing_photo.append(std_output)
     else:
-        has_photo.append((profile['name'], '{}{}'.format(base_url, profile['photo_url'])))
+        has_photo.append((std_output, '{}{}'.format(base_url, profile['photo_url'])))
     # has_irregular_func
     regular_funcs = [
                     'Full Professor',
@@ -226,7 +237,7 @@ for email, dept in input_dict.items():
     if not profile['story']:
         missing_story.append(std_output)
     else:
-        has_story.append('{}\n{}\n'.format(std_output, profile['story']))
+        has_story.append((std_output, profile['story']))
     # missing_linkedin
     if not profile['linked_in_url']:
         missing_linked_in.append(std_output)
@@ -254,11 +265,11 @@ write_report(missing_cv, '7_missing_cv')
 write_report(missing_linked_in, '8_missing_LinkedIn')
 write_report(missing_room_tel, '9_missing_room_tel')
 write_report(missing_story, '10_missing_story')
-write_report(has_story, '11_has_story')
+# 11 has_story: see below
 write_report(has_full_title, '12_has_full_title')
 write_report(missing_key_pub, '13_missing_key_publication')
 
-# write report 5_has_photo_ESE_profile_pages
+# write report 5_has_photo
 cnt = 1
 table_html = []
 table_html.append('<table>')
@@ -266,7 +277,7 @@ table_html.append('<tr>')
 for photo in sorted(has_photo):
     if table_html[-1] == '</tr>':
         table_html.append('<tr>')
-    table_html.append('<td>{}</td>'.format(photo[0]))
+    table_html.append('<td>{}</td>'.format(photo[0])) # std_output_photo = ';'.join(std_output.split(';')[0:2])
     table_html.append('<td><img src=\'{}\'</td>'.format(photo[1]))
     if cnt%4 == 0:
         table_html.append('</tr>')
@@ -276,4 +287,12 @@ if table_html[-1] != '</tr>':
 table_html.append('</table>')
 html = '\n'.join(table_html)
 with open(os.path.join(main_dir, output_dir, '5_has_photo_{}_{}.html'.format(school_name, datetime.date.today())), 'w') as f_out:
+    f_out.write(html)
+
+# write report 11_has_story
+story_html = []
+for story in sorted(has_story):
+    story_html.append('<h1>{}</h1><p>{}</p>'.format(story[0], story[1]))
+html = '\n'.join(story_html)
+with open(os.path.join(main_dir, output_dir, '11_has_story_{}_{}.html'.format(school_name, datetime.date.today())), 'w') as f_out:
     f_out.write(html)
