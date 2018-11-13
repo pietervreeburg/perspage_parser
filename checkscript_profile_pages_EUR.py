@@ -1,5 +1,5 @@
 # Checkscript for ESE profile pages
-# Pieter Vreeburg, 20-8-2018
+# Pieter Vreeburg, 24-8-2018
 
 # imports
 import os # from std. library, os interactions
@@ -19,7 +19,7 @@ input_dir = 'input'
 output_dir = 'output'
 
 # prod URLs
-base_url = 'https://eur.nl'
+base_url = 'https://www.eur.nl'
 lang_url = 'en'
 listview_url = 'people?s=&page='
 
@@ -84,7 +84,7 @@ while True:
         detail_page_url_list.append(detail_page_url)
     listview_page_num += 1
 
-    break # debug
+    # break # debug
 
 # use detail_page_url_list to build profile_datastore
 # TO_DO: has_irregular_staff, get from func
@@ -145,10 +145,9 @@ for detail_page_url in detail_page_url_list:
         name = name.string
         profile_datastore[email]['name'] = name.encode('utf-8')
     # story
-    # hier gaat nog iets mis om dat een <strong> in een <p> als twee descendants wordt gezien en daarom komt de inhoud twee keer terug
     story_div = detail_page_soup.find('div', class_ = 'fold-out__extra-text js-accordion-content')
     if story_div:
-        profile_datastore[email]['story'] = str(story_div)
+        profile_datastore[email]['story'] = unicode(story_div).encode('utf-8')
     # key publication
     key_pub = detail_page_soup.find(string = re.compile('Key publication (.+)'))
     if key_pub:
@@ -184,35 +183,25 @@ has_irregular_func = []
 has_story = []
 has_full_title = []
 
-input_dict = {}
+staff_email = []
 staff_data = open(os.path.join(main_dir, input_dir, input_file)).read().splitlines()
 for row in staff_data:
-    email, dept = row.split(';')
+    email, dept, last_name = row.split(';')
     email = email.lower()
-    input_dict[email] = dept
+    staff_email.append(email)
 
-for email, dept in input_dict.items():
     profile = profile_datastore.get(email)
     # missing_profile
     if not profile:
-        missing_page.append('{}, {}'.format(dept, email))
+        missing_page.append('{}, {}, {}'.format(dept, last_name, email))
         continue
-    std_output = '{}; {}; {}; {}'.format(dept, profile['name'], email, profile['detail_page_url'])
-    # get sorting decorator
-    detail_url_split = profile['detail_page_url'].split('-')
-    if len(detail_url_split[-1]) == 1:
-        last_nm = detail_url_split[-2]
-    else:
-        last_nm = detail_url_split[-1]
-    sort_dec = '{}_{}'.format(dept, last_nm)
-    
-    # add sorting decorator to std output as tuple. Use decorator to sort, remove decorator in report writer
+    std_output = '{}; {}; {}; {}'.format(dept, last_name, email, profile['detail_page_url'])
     
     # missing_photo & has_photo
     if profile['photo_url'].split('/')[-1] == 'profile-default-image.jpg':
         missing_photo.append(std_output)
     else:
-        has_photo.append((std_output, '{}{}'.format(base_url, profile['photo_url'])))
+        has_photo.append(('{}, {}'.format(dept, last_name), '{}{}'.format(base_url, profile['photo_url'])))
     # has_irregular_func
     regular_funcs = [
                     'Full Professor',
@@ -250,9 +239,8 @@ for email, dept in input_dict.items():
 
 remove_page = []
 for email in profile_datastore.keys():
-    if email not in input_dict.keys():
-        std_output = '{}, {}, {}'.format(profile_datastore[email]['name'], email, profile_datastore[email]['detail_page_url'])
-        remove_page.append(std_output)
+    if email not in staff_email:
+        remove_page.append('{}, {}, {}'.format(profile_datastore[email]['name'], email, profile_datastore[email]['detail_page_url']))
 
 # write reports
 write_report(remove_page, '1_remove_page')
@@ -290,7 +278,7 @@ with open(os.path.join(main_dir, output_dir, '5_has_photo_{}_{}.html'.format(sch
     f_out.write(html)
 
 # write report 11_has_story
-story_html = []
+story_html = ['<head><meta charset="utf-8"/></head>\n']
 for story in sorted(has_story):
     story_html.append('<h1>{}</h1><p>{}</p>'.format(story[0], story[1]))
 html = '\n'.join(story_html)
